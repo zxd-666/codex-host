@@ -33,7 +33,7 @@ describe("platform packagers", () => {
     expect(source).not.toContain("cargo-packager");
   });
 
-  it("publishes one tag-bound four-platform installer and npm release", async () => {
+  it("publishes one tag-bound four-platform installer-only release", async () => {
     const [workflow, releaseBuilder, releaseClient, releaseValidation] = await Promise.all([
       readFile(path.join(root, ".github/workflows/release-packages.yml"), "utf8"),
       readFile(path.join(root, "scripts/release/prepare-payload.mjs"), "utf8"),
@@ -47,45 +47,22 @@ describe("platform packagers", () => {
     expect(releaseValidation).toContain("does not match Cargo workspace version");
     expect(releaseValidation).toContain("must be an annotated tag with release notes");
     expect(releaseValidation).toContain("%(contents:body)");
-    expect(workflow).toContain("npm_tag: result.npmTag");
     expect(workflow).toContain("ref: ${{ needs.prepare.outputs.commit_sha }}");
     expect(workflow).not.toContain("ref: ${{ needs.prepare.outputs.tag }}");
-    expect(workflow).toContain("Revalidate tag and CI immediately before npm publication");
     expect(workflow).toContain("Revalidate tag and CI immediately before GitHub publication");
 
     expect(workflow).toContain("codexhost-*.dmg");
     expect(workflow).toContain("codexhost-*.exe");
     expect(workflow).not.toContain("codexhost-*.msi");
-    expect(workflow).toContain("npm run release:npm --");
-    expect(workflow).toContain("Build npm package from installer outputs");
-    expect(workflow).toContain("Build and smoke-test Linux npm package");
-    const linuxPackageStep = workflow.slice(
-      workflow.indexOf("Build and smoke-test Linux npm package"),
-    );
-    const linuxPackageCommand = linuxPackageStep.slice(0, linuxPackageStep.indexOf("- name:", 1));
-    expect(linuxPackageCommand).toContain("scripts/release/smoke-npm-package.mjs");
-    expect(linuxPackageCommand).not.toContain("--skip-build");
-    expect(workflow).toContain("--skip-build");
-    expect(workflow).toContain("--pack");
-    expect(workflow).toContain("codexhost-cli-*-${{ matrix.target }}.tgz");
     expect(workflow).toContain("Build installer package");
-    expect(workflow).toContain("if: runner.os != 'Linux'");
-    expect(workflow).toContain("target: linux-x64");
-    expect(workflow).toContain("runner: ubuntu-22.04");
-    expect(workflow).toContain(
-      "--require-hashes --only-binary :all: -r scripts/release/linux-zigbuild-requirements.txt",
-    );
-    expect(workflow).toContain("rustTarget: x86_64-unknown-linux-gnu");
-    expect(workflow).toContain("target: linux-arm64");
-    expect(workflow).toContain("runner: ubuntu-22.04-arm");
-    expect(workflow).toContain("rustTarget: aarch64-unknown-linux-gnu");
-    expect(workflow).toContain("Build npm package");
-    expect(workflow).toContain("release:npm:meta");
-    expect(workflow).toContain("release:npm:publish");
-    expect(workflow).toContain('--tag "$NPM_TAG"');
-    expect(workflow).not.toContain("secrets.NPM_TOKEN");
-    expect(workflow).not.toContain("NODE_AUTH_TOKEN");
-    expect(workflow).toContain("id-token: write");
+    expect(workflow).not.toContain("release:npm");
+    expect(workflow).not.toContain("publish-npm:");
+    expect(workflow).not.toContain("skip_npm");
+    expect(workflow).not.toContain("target: linux-");
+    expect(workflow).not.toContain("cargo-zigbuild");
+    expect(workflow).not.toContain("codexhost-cli-");
+    expect(workflow).toContain("target: macos-arm64");
+    expect(workflow).toContain("target: windows-arm64");
 
     expect(workflow).not.toContain("smoke-npm:");
     expect(workflow).not.toContain("npm view");

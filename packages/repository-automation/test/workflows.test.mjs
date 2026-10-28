@@ -62,17 +62,14 @@ describe("workflow and form contracts", () => {
     expect(workflow).not.toMatch(/github\.event\.(?:issue|pull_request)\.(?:body|title)/u);
   });
 
-  it("allows explicit installer-only recovery without bypassing release prerequisites", async () => {
+  it("publishes installers only and never bypasses release prerequisites", async () => {
     const workflow = await read(".github/workflows/release-packages.yml");
-    expect(workflow).toContain("skip_npm:");
-    expect(workflow).toContain("if: github.event_name != 'workflow_dispatch' || !inputs.skip_npm");
+    expect(workflow).not.toContain("skip_npm:");
+    expect(workflow).not.toContain("publish-npm:");
     const publishRelease = workflow.slice(workflow.indexOf("  publish-release:"));
     expect(publishRelease).toContain("needs.prepare.result == 'success'");
     expect(publishRelease).toContain("needs.package.result == 'success'");
-    expect(publishRelease).toContain("needs.publish-npm.result == 'success'");
-    expect(publishRelease).toContain(
-      "github.event_name == 'workflow_dispatch' && inputs.skip_npm && needs.publish-npm.result == 'skipped'",
-    );
+    expect(publishRelease).not.toContain("publish-npm");
     expect(publishRelease).toContain("await verifyRelease(");
   });
 
@@ -88,11 +85,11 @@ describe("workflow and form contracts", () => {
     const workflow = await read(".github/workflows/release-packages.yml");
     expect(workflow).not.toContain("ref: ${{ needs.prepare.outputs.tag }}");
     expect(workflow.match(/ref: \$\{\{ needs\.prepare\.outputs\.commit_sha \}\}/gu)).toHaveLength(
-      3,
+      2,
     );
     expect(
       workflow.match(/ref: \$\{\{ needs\.prepare\.outputs\.automation_sha \}\}/gu),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
     expect(workflow.match(/await verifyRelease\(/gu)).toHaveLength(2);
     expect(workflow).toContain("release-evidence.json");
     expect(workflow).toContain("timeout-minutes: 35");
