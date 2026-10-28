@@ -90,7 +90,7 @@ describe("workflow and form contracts", () => {
     expect(
       workflow.match(/ref: \$\{\{ needs\.prepare\.outputs\.automation_sha \}\}/gu),
     ).toHaveLength(1);
-    expect(workflow.match(/await verifyRelease\(/gu)).toHaveLength(2);
+    expect(workflow.match(/await verifyRelease\(/gu)).toHaveLength(1);
     expect(workflow).toContain("release-evidence.json");
     expect(workflow).toContain("timeout-minutes: 35");
     expect(workflow).toContain("waitForCi: true");
