@@ -11,12 +11,7 @@ on:
         required: true
         type: string
       github_prerelease:
-        description: "Mark GitHub Release as prerelease without changing the npm dist-tag"
-        required: false
-        default: false
-        type: boolean
-      skip_npm:
-        description: "Skip npm publication and publish GitHub installers only"
+        description: "Mark GitHub Release as prerelease"
         required: false
         default: false
         type: boolean
@@ -40,7 +35,6 @@ jobs:
       contents: read
       actions: read
     outputs:
-      npm_tag: ${{ steps.release.outputs.npm_tag }}
       prerelease: ${{ steps.release.outputs.prerelease }}
       tag: ${{ steps.release.outputs.tag }}
       version: ${{ steps.release.outputs.version }}
@@ -122,12 +116,6 @@ jobs:
           - target: windows-arm64
             runner: windows-latest
             rustTarget: aarch64-pc-windows-msvc
-          - target: linux-x64
-            runner: ubuntu-22.04
-            rustTarget: x86_64-unknown-linux-gnu
-          - target: linux-arm64
-            runner: ubuntu-22.04-arm
-            rustTarget: aarch64-unknown-linux-gnu
 
     steps:
       - name: Checkout immutable release commit
@@ -170,39 +158,6 @@ jobs:
         if: runner.os != 'Linux'
         run: npm run release:package -- --target ${{ matrix.target }}
 
-      - name: Build npm package from installer outputs
-        if: runner.os != 'Linux'
-        shell: bash
-        run: >
-          npm run release:npm --
-          --target ${{ matrix.target }}
-          --version ${{ needs.prepare.outputs.version }}
-          --pack
-          --skip-build
-
-      - name: Setup cargo-zigbuild
-        if: runner.os == 'Linux'
-        run: |
-          python3 -m venv "$RUNNER_TEMP/zigbuild"
-          "$RUNNER_TEMP/zigbuild/bin/python" -m pip install --disable-pip-version-check \
-            --require-hashes --only-binary :all: -r scripts/release/linux-zigbuild-requirements.txt
-          echo "$RUNNER_TEMP/zigbuild/bin" >> "$GITHUB_PATH"
-
-      - name: Build and smoke-test Linux npm package
-        if: runner.os == 'Linux'
-        run: >
-          node scripts/release/smoke-npm-package.mjs
-          --target ${{ matrix.target }}
-          --version ${{ needs.prepare.outputs.version }}
-
-      - name: Build npm meta package
-        if: matrix.target == 'macos-arm64'
-        shell: bash
-        run: >
-          npm run release:npm:meta --
-          --version ${{ needs.prepare.outputs.version }}
-          --pack
-
       - name: Upload packaged artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -210,95 +165,14 @@ jobs:
           path: |
             build/release/${{ needs.prepare.outputs.version }}/${{ matrix.target }}/codexhost-*.dmg
             build/release/${{ needs.prepare.outputs.version }}/${{ matrix.target }}/codexhost-*.exe
-            build/npm/${{ needs.prepare.outputs.version }}/${{ matrix.target }}/codexhost-cli-*-${{ matrix.target }}.tgz
-            build/npm/${{ needs.prepare.outputs.version }}/meta/codexhost-cli-${{ needs.prepare.outputs.version }}.tgz
           if-no-files-found: error
           retention-days: 7
-
-  publish-npm:
-    name: Publish npm registry packages
-    if: github.event_name != 'workflow_dispatch' || !inputs.skip_npm
-    needs: [prepare, package]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: read
-      id-token: write
-    steps:
-      - name: Checkout immutable release commit
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: ${{ needs.prepare.outputs.commit_sha }}
-          persist-credentials: false
-
-      - name: Checkout pinned verification code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: ${{ needs.prepare.outputs.automation_sha }}
-          path: .release-automation
-          persist-credentials: false
-          sparse-checkout: packages/repository-automation
-
-      - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version-file: .node-version
-          registry-url: https://registry.npmjs.org
-
-      - name: Setup npm
-        run: npm install --global npm@11.8.0
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build TypeScript prerequisites
-        run: npm run build:typescript
-
-      - name: Download npm artifacts
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          pattern: codexhost-*
-          path: build/npm-publish
-          merge-multiple: true
-
-      - name: Revalidate tag and CI immediately before npm publication
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
-        env:
-          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
-          RELEASE_SHA: ${{ needs.prepare.outputs.commit_sha }}
-          TAG_OBJECT_SHA: ${{ needs.prepare.outputs.tag_object_sha }}
-          CI_RUN_ID: ${{ needs.prepare.outputs.ci_run_id }}
-          CI_RUN_ATTEMPT: ${{ needs.prepare.outputs.ci_run_attempt }}
-        with:
-          script: |
-            const { pathToFileURL } = await import('node:url');
-            const { resolve } = await import('node:path');
-            const { verifyRelease } = await import(pathToFileURL(resolve('.release-automation/packages/repository-automation/index.mjs')).href);
-            await verifyRelease({ github, repo: context.repo,
-              tag: process.env.RELEASE_TAG, sha: process.env.RELEASE_SHA,
-              tagObjectSha: process.env.TAG_OBJECT_SHA,
-              ciRunId: process.env.CI_RUN_ID, ciRunAttempt: process.env.CI_RUN_ATTEMPT,
-            });
-
-      - name: Publish platform packages and meta package
-        env:
-          NPM_TAG: ${{ needs.prepare.outputs.npm_tag }}
-          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
-        run: >
-          npm run release:npm:publish --
-          --artifacts build/npm-publish
-          --version "$RELEASE_VERSION"
-          --tag "$NPM_TAG"
-          --provenance
 
   publish-release:
     name: Publish GitHub Release
     if: >-
-      !cancelled() && needs.prepare.result == 'success' && needs.package.result == 'success' &&
-      needs.prepare.outputs.npm_tag != 'test' &&
-      (needs.publish-npm.result == 'success' ||
-      (github.event_name == 'workflow_dispatch' && inputs.skip_npm && needs.publish-npm.result == 'skipped'))
-    needs: [prepare, package, publish-npm]
+      !cancelled() && needs.prepare.result == 'success' && needs.package.result == 'success'
+    needs: [prepare, package]
     runs-on: ubuntu-latest
     permissions:
       contents: write
