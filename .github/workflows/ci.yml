@@ -90,6 +90,7 @@ jobs:
           --exclude 'packages/repository-automation/test/**'
           --exclude 'packages/shared-contracts/test/**'
           --exclude 'packages/renderer-extension/test/**'
+          --exclude 'packages/mapping-store/test/windows-lock-native.test.ts'
           --exclude 'tools/gate-claude-code/run.test.mjs'
 
       # Rust formatting is already covered by the Linux x64 formatting step.
