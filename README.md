@@ -32,7 +32,7 @@ But **Codex** isn't the only great **Agent Harness** — **Claude Code** and **P
 </p>
 <br />
 
-<p align="center"><a href="https://github.com/BytePioneer-AI/codex-host/releases"><strong>Download</strong></a> · <a href="#cross-agent-collaboration">Cross-Agent Collaboration</a> · <a href="#remote-harness">Remote</a> · <a href="#join-the-community">微信交流群</a> · <a href="docs/project/README.zh-CN.md">简体中文</a> · <a href="docs/project/README.ko.md">한국어</a></p>
+<p align="center"><a href="https://github.com/zxd-666/codex-host/releases"><strong>Download</strong></a> · <a href="#cross-agent-collaboration">Cross-Agent Collaboration</a> · <a href="#remote-harness">Remote</a> · <a href="#join-the-community">微信交流群</a> · <a href="docs/project/README.zh-CN.md">简体中文</a> · <a href="docs/project/README.ko.md">한국어</a></p>
 
 <br />
 
@@ -74,7 +74,7 @@ codexhost
 
 **Option 2: Installer** (macOS / Windows)
 
-Grab the installer for your platform from [Releases](https://github.com/BytePioneer-AI/codex-host/releases).
+Grab the installer for your platform from [Releases](https://github.com/zxd-666/codex-host/releases).
 
 > Linux is supported on x64 and ARM64. See the [Linux guide](docs/platforms/linux/linux.md).
 
@@ -291,7 +291,7 @@ Please read the [contributing guide](CONTRIBUTING.md) before opening an issue or
 Requirements: the official Codex Desktop, Node.js 22.19+ or 24, and Rust.
 
 ```bash
-git clone https://github.com/BytePioneer-AI/codex-host
+git clone https://github.com/zxd-666/codex-host
 cd codex-host
 npm ci
 npm start
@@ -323,13 +323,13 @@ Tip: point your coding Agent at the in-repo [codexhost-add-harness Skill](.agent
 
 Thanks to everyone who has contributed to CodexHost.
 
-<a href="https://github.com/BytePioneer-AI/codex-host/graphs/contributors">
-  <img alt="CodexHost contributors" src="https://contrib.rocks/image?repo=BytePioneer-AI/codex-host" />
+<a href="https://github.com/zxd-666/codex-host/graphs/contributors">
+  <img alt="CodexHost contributors" src="https://contrib.rocks/image?repo=zxd-666/codex-host" />
 </a>
 
 ## Star History
 
-<a href="https://www.star-history.com/?repos=bytepioneer-ai%2Fcodex-host&type=date&legend=top-left">
+<a href="https://www.star-history.com/?repos=zxd-666%2Fcodex-host&type=date&legend=top-left">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=bytepioneer-ai/codex-host&type=date&theme=dark&legend=top-left" />
     <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=bytepioneer-ai/codex-host&type=date&legend=top-left" />

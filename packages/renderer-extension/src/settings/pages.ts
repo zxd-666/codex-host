@@ -51,8 +51,9 @@ import {
   runBoundedRendererUpdateRequest,
 } from "./update-request.js";
 
-export const CODEXHOST_GITHUB_REPOSITORY_URL = "https://github.com/BytePioneer-AI/codex-host";
+export const CODEXHOST_GITHUB_REPOSITORY_URL = "https://github.com/zxd-666/codex-host";
 export const CODEXHOST_RELEASES_LATEST_URL = `${CODEXHOST_GITHUB_REPOSITORY_URL}/releases/latest`;
+export const CODEXHOST_UPSTREAM_REPOSITORY_URL = "https://github.com/BytePioneer-AI/codex-host";
 export const CODEXHOST_NPM_MANUAL_UPDATE_COMMAND = "npm install -g @codexhost/cli@latest";
 
 interface RendererUserAgentData {
@@ -77,7 +78,7 @@ function windowsInstallerDownloadUrl(window: Window | null | undefined, version:
   const hints = navigator ? rendererUserAgentData(navigator) : undefined;
   const identity = `${hints?.architecture ?? ""} ${hints?.platform ?? ""} ${navigator?.platform ?? ""} ${navigator?.userAgent ?? ""}`;
   const architecture = /arm64|aarch64|\barm\b/iu.test(identity) ? "arm64" : "x64";
-  return `https://github.com/BytePioneer-AI/codex-host/releases/download/v${version}/codexhost-${version}-windows-${architecture}.exe`;
+  return `https://github.com/zxd-666/codex-host/releases/download/v${version}/codexhost-${version}-windows-${architecture}.exe`;
 }
 
 export const DEFAULT_RENDERER_SETTINGS_PAGE_IDS = [
@@ -255,7 +256,20 @@ function aboutPage(
         messages.aboutRepository,
         repositoryUrl,
       );
-      repositorySection.append(openSource, repository);
+      const upstream = document.createElement("p");
+      upstream.className = "settings-about-upstream";
+      upstream.textContent = messages.aboutUpstream;
+      const upstreamLink = document.createElement("a");
+      upstreamLink.className = "settings-about-repository-link settings-about-upstream-link";
+      upstreamLink.href = CODEXHOST_UPSTREAM_REPOSITORY_URL;
+      upstreamLink.target = "_blank";
+      upstreamLink.rel = "noopener noreferrer";
+      upstreamLink.append(
+        createRendererSettingsIcon("external-link", 14),
+        messages.aboutUpstreamLink,
+      );
+      upstream.append(upstreamLink);
+      repositorySection.append(openSource, repository, upstream);
       panel.append(product, tagline, introduction, starCallout, repositorySection);
       const consoleEntry = consoleSection(document, messages, getClient());
       if (consoleEntry) panel.append(consoleEntry);

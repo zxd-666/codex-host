@@ -280,6 +280,8 @@ export interface RendererSettingsMessages {
   readonly aboutOpenSource: string;
   readonly aboutStarCallout: string;
   readonly aboutRepository: string;
+  readonly aboutUpstream: string;
+  readonly aboutUpstreamLink: string;
   readonly aboutConsole: string;
   readonly aboutConsoleOpen: string;
   readonly aboutConsoleOpening: string;
@@ -585,6 +587,9 @@ const ENGLISH_MESSAGES: RendererSettingsMessages = Object.freeze({
   aboutOpenSource: "codexhost is an open-source project. The source code is available at:",
   aboutStarCallout: "⭐ If this project helps you, please give us a Star! ⭐",
   aboutRepository: "Open-source repository",
+  aboutUpstream:
+    "This build continues from the upstream open-source project. Special thanks to the original authors and contributors:",
+  aboutUpstreamLink: "BytePioneer-AI/codex-host",
   aboutConsole:
     "The codexhost console runs outside Codex Desktop. It shows startup diagnostics and logs, and can update codexhost even when Codex cannot start.",
   aboutConsoleOpen: "Open console",
@@ -884,6 +889,8 @@ const CHINESE_MESSAGES: RendererSettingsMessages = Object.freeze({
   aboutOpenSource: "codexhost 是一个开源项目，开源地址：",
   aboutStarCallout: "⭐ 如果这个项目对你有帮助，请给我们一个 Star！⭐",
   aboutRepository: "开源仓库",
+  aboutUpstream: "本项目基于上游开源项目继续维护，感谢原作者与所有贡献者：",
+  aboutUpstreamLink: "BytePioneer-AI/codex-host",
   aboutConsole:
     "codexhost 控制台独立于 Codex Desktop 运行，可以查看启动诊断和日志；即使 Codex 无法启动，也能在控制台更新 codexhost。",
   aboutConsoleOpen: "打开控制台",
