@@ -714,9 +714,9 @@ export function createDefaultRendererSettingsPages(
   requestUsageStatistics: RendererUsageStatisticsRequest = () =>
     Promise.reject(new Error("Local Host connection is unavailable")),
   usageStatisticsHosts?: RendererUsageStatisticsHostsProvider,
+  harnessSchedules?: HarnessSchedulesPageOptions,
   requestSkills: RendererSkillsRequest = () =>
     Promise.reject(new Error("Local Host connection is unavailable")),
-  harnessSchedules?: HarnessSchedulesPageOptions,
 ): readonly RendererSettingsPageDefinition[] {
   return Object.freeze([
     createConnectionsSettingsPage(messages, getDiagnostics, undefined, getRemoteConnections),
@@ -765,6 +765,7 @@ export function createDefaultRendererSettingsRegistry(
       undefined,
       requestUsageStatistics,
       usageStatisticsHosts,
+      undefined,
       requestSkills,
     ),
   );

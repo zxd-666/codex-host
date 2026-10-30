@@ -92,7 +92,6 @@ export function installRendererSettingsLifecycle(
       options.getRemoteConnections ?? (() => null),
       options.requestUsageStatistics,
       options.usageStatisticsHosts,
-      options.requestSkills,
       schedules
         ? {
             openSchedules: async (signal) => {
@@ -101,6 +100,7 @@ export function installRendererSettingsLifecycle(
             },
           }
         : undefined,
+      options.requestSkills,
     );
     const nextShell = installRendererSettingsShell(definitions, messages, ownerWindow.document, {
       onOpenChange(open) {
