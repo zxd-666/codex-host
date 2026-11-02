@@ -1,7 +1,4 @@
-import { readFile, rm } from "node:fs/promises";
-import path from "node:path";
-
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { prepareGatewayDelegation } from "../src/gateway-delegation.js";
 
@@ -12,16 +9,11 @@ const required = {
   CODEXHOST_THREAD_ID: "thread-1",
 };
 
-const directories: string[] = [];
-
-afterEach(async () => {
-  await Promise.all(directories.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
-});
-
 describe("prepareGatewayDelegation bootstrap", () => {
   it("returns an empty bootstrap when delegation env vars are missing", async () => {
     const prepared = await prepareGatewayDelegation({ CODEXHOST_CLI_PATH: "/x" });
     expect(prepared.bootstrap).toBe("");
+    expect(prepared.guidance).toBeNull();
     await prepared.dispose();
   });
 
@@ -42,26 +34,18 @@ describe("prepareGatewayDelegation bootstrap", () => {
     // bootstrap must restore the saved stdout right after that import.
     const stdoutRestore = prepared.bootstrap.indexOf("sys.stdout = _stdout");
     expect(stdoutRestore).toBeGreaterThan(serverImport);
-    expect(prepared.bootstrap).toContain("register_skill");
-    // The registered Skill file exists while the delegation is live.
-    const match = /Path\("([^"]+)"\)/.exec(prepared.bootstrap);
-    expect(match).not.toBeNull();
-    const skillFile = match?.[1] ?? "";
-    expect(skillFile).not.toBe("");
-    directories.push(path.dirname(skillFile));
-    const skill = await readFile(skillFile, "utf8");
-    expect(skill).toContain("name: delegation");
-    await prepared.dispose();
-  });
-
-  it("appends the delegation skill to HERMES_TUI_SKILLS without clobbering", async () => {
-    const prepared = await prepareGatewayDelegation({
-      ...required,
-      HERMES_TUI_SKILLS: "existing:skill",
-    });
-    expect(prepared.environment.HERMES_TUI_SKILLS).toBe(
-      "existing:skill,codexhost-runtime:delegation",
-    );
+    // The bridge process no longer registers the skill itself: the executing
+    // agent lives in the GATEWAY process, which receives the preload through
+    // canonical create's `skills` parameter instead.
+    expect(prepared.bootstrap).not.toContain("register_skill");
+    // No skill file is written anymore: the guidance reaches the gateway-side
+    // agent through the first prompt.submit's api_text, not the skill roots.
+    const guidance = prepared.guidance ?? "";
+    expect(guidance).toContain("CODEXHOST_CLI_PATH: /usr/local/bin/codexhost");
+    expect(guidance).toContain(required.CODEXHOST_RUNTIME_ENDPOINT);
+    expect(guidance).toContain(required.CODEXHOST_RUNTIME_TOKEN);
+    expect(guidance).toContain(required.CODEXHOST_THREAD_ID);
+    expect(guidance.endsWith("the user's message follows)")).toBe(true);
     await prepared.dispose();
   });
 });

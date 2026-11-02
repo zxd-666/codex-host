@@ -609,3 +609,176 @@ describe("Hermes gateway native turn projection", () => {
     });
   });
 });
+
+describe("Hermes gateway canonical review fixes", () => {
+  it("settles a turn only on its own admission's completion (shared session)", async () => {
+    const f = fixture();
+    f.request.mockImplementation(async (method) => {
+      if (method === "prompt.submit") return { status: "started", admission_id: "mine" };
+      return {};
+    });
+    let settled: unknown = null;
+    const done = f.bridge
+      .runTurn(
+        "hello",
+        () => {},
+        async () => null,
+      )
+      .then((value) => {
+        settled = value;
+        return value;
+      });
+    await pause();
+    // Another client's admission completes in the SAME session: its text must
+    // not become this Host turn's final answer, and the turn must stay open.
+    f.raw.onEvent({
+      type: "message.complete",
+      session_id: "runtime",
+      admission_id: "other-client",
+      payload: { text: "someone else's answer", status: "complete" },
+    });
+    await pause();
+    expect(settled).toBeNull();
+    // The turn's own admission settles it.
+    f.raw.onEvent({
+      type: "message.complete",
+      session_id: "runtime",
+      admission_id: "mine",
+      payload: { text: "my answer", status: "complete" },
+    });
+    await expect(done).resolves.toMatchObject({
+      stopReason: "end_turn",
+      finalAnswerText: "my answer",
+    });
+  });
+
+  it("aborts a permission prompt when approval.cancelled arrives", async () => {
+    const f = fixture();
+    const done = f.bridge.runTurn(
+      "hello",
+      () => {},
+      (request) => {
+        return new Promise<string | null>((_resolve, reject) => {
+          request.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+        });
+      },
+    );
+    await pause();
+    // The gateway asks for an approval decision.
+    void f.raw.onRequest("srq-1", "approval", {
+      session_id: "runtime",
+      request_id: "queue-1",
+      command: "rm -rf /tmp/probe",
+      description: "",
+      choices: ["once", "deny"],
+    });
+    await pause();
+    // An interrupt drops the queued approval; the permission wait must end.
+    f.emit("approval.cancelled", { request_ids: ["queue-1"], reason: "interrupt" });
+    await expect(done).rejects.toThrow();
+  });
+
+  it("reports a switched YOLO mode from openResult", async () => {
+    const f = fixture();
+    await f.bridge.setPermissionMode("dont_ask");
+    const open = await f.bridge.openResult();
+    expect(open.session.modes?.currentModeId).toBe("dont_ask");
+    await f.bridge.setPermissionMode("default");
+    const again = await f.bridge.openResult();
+    expect(again.session.modes?.currentModeId).toBe("default");
+  });
+
+  it("answers a snapshot-adopted approval through approval.respond on the first turn", async () => {
+    const f = fixture();
+    f.bridge.adoptPendingPrompts([
+      {
+        kind: "approval",
+        prompt_id: "p1",
+        execution_generation: 3,
+        choices: ["once", "deny"],
+        command: "dangerous-command",
+        description: "",
+      },
+    ]);
+    const done = f.bridge.runTurn(
+      "hello",
+      () => {},
+      async () => "once",
+    );
+    await pause();
+    await pause();
+    expect(f.request).toHaveBeenCalledWith(
+      "approval.respond",
+      {
+        session_id: "runtime",
+        execution_generation: 3,
+        prompt_id: "p1",
+        choice: "once",
+      },
+      expect.anything(),
+      false,
+    );
+    f.emit("message.complete", { text: "done", status: "complete" });
+    await expect(done).resolves.toMatchObject({ stopReason: "end_turn" });
+  });
+});
+
+describe("delegation guidance via api_text", () => {
+  it("injects the guidance on the first submit only, text stays verbatim", async () => {
+    const f = fixture();
+    const bridge = new HermesGatewaySessionTransport(
+      f.raw,
+      "runtime",
+      "native",
+      { model: "test", provider: "custom", yolo: false },
+      { revision: 0, generation: 0 },
+      "GUIDANCE(probe-thread-668)",
+    );
+    const submitCalls: unknown[] = [];
+    let admissionSeq = 0;
+    f.request.mockImplementation(async (method, params) => {
+      if (method === "prompt.submit") {
+        submitCalls.push(params);
+        admissionSeq += 1;
+        return { status: "started", admission_id: `a${admissionSeq}` };
+      }
+      return {};
+    });
+    const first = bridge.runTurn(
+      "first question",
+      () => {},
+      async () => null,
+    );
+    await pause();
+    f.raw.onEvent({
+      type: "message.complete",
+      session_id: "runtime",
+      admission_id: "a1",
+      payload: { text: "ok", status: "complete" },
+    });
+    await expect(first).resolves.toMatchObject({ stopReason: "end_turn" });
+    const second = bridge.runTurn(
+      "second question",
+      () => {},
+      async () => null,
+    );
+    await pause();
+    f.raw.onEvent({
+      type: "message.complete",
+      session_id: "runtime",
+      admission_id: "a2",
+      payload: { text: "ok2", status: "complete" },
+    });
+    await expect(second).resolves.toMatchObject({ stopReason: "end_turn" });
+    expect(submitCalls).toHaveLength(2);
+    const [firstParams, secondParams] = submitCalls as [
+      { api_text?: string; text: string },
+      { api_text?: string; text: string },
+    ];
+    expect(firstParams.api_text).toContain("GUIDANCE(probe-thread-668)");
+    expect(firstParams.api_text?.endsWith("first question")).toBe(true);
+    expect(firstParams.text).toBe("first question");
+    expect(secondParams.api_text).toBeUndefined();
+    expect(secondParams.text).toBe("second question");
+  });
+});

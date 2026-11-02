@@ -31,7 +31,6 @@ import { HermesGatewayHistoryError } from "./gateway-history.js";
 import { hermesGatewayThinkingOptions } from "./gateway-session-transport.js";
 import type { HarnessUsageStatisticsCapability } from "@codexhost/harness-adapter";
 import { createHermesUsageStatistics } from "./usage-statistics.js";
-import { createHermesSkillsCatalog } from "./hermes-skills.js";
 import {
   gatewayCapabilities,
   gatewayPermissionModes,
@@ -72,13 +71,10 @@ export class HermesAdapter implements HarnessAdapter {
   #gatewayProbes = new Map<string, Promise<HermesPythonRuntime | null>>();
   #openingNativeIds = new Set<string>();
   readonly usageStatistics: HarnessUsageStatisticsCapability;
-  readonly skillsCatalog: ReturnType<typeof createHermesSkillsCatalog>;
   constructor(options: HermesAdapterOptions = {}) {
     this.#options = options;
     // Read-only over Hermes' own state database for global usage statistics; no CLI is started.
     this.usageStatistics = createHermesUsageStatistics(options.environment ?? process.env);
-    // Read-only over Hermes' own skills directories; no CLI is started.
-    this.skillsCatalog = createHermesSkillsCatalog(options.environment ?? process.env);
   }
 
   async inspect(input: InspectHarnessInput = {}): Promise<HarnessInspection> {
@@ -226,17 +222,21 @@ export class HermesAdapter implements HarnessAdapter {
       return failure("sessionBusy", "This Hermes Session already has an owner", true);
     if (ref) this.#openingNativeIds.add(ref.nativeSessionId);
     // Warm pool first: a settled session's bridge is a stateless pipe to the
-    // resident gateway and serves the next open without a fresh spawn.
-    let transport = this.#gatewayPool.acquire(runtime);
-    if (transport === null)
-      transport = await startGatewayTransport(
-        runtime,
-        input.cwd,
-        environment,
-        this.#options.commandTimeoutMs,
-      );
-    this.#gatewayTransports.add(transport);
+    // resident gateway and serves the next open without a fresh spawn. The
+    // acquire/start happens INSIDE the guarded region: a failed start must
+    // still release the resume ownership marker above, or every later resume
+    // of this Session reports sessionBusy forever.
+    let transport!: HermesGatewayTransport;
     try {
+      transport =
+        this.#gatewayPool.acquire(runtime, input.cwd, environment) ??
+        (await startGatewayTransport(
+          runtime,
+          input.cwd,
+          environment,
+          this.#options.commandTimeoutMs,
+        ));
+      this.#gatewayTransports.add(transport);
       let inheritedMode: string | undefined;
       if (input.kind === "fork") {
         const source = [...this.#sessions].find(
@@ -264,8 +264,10 @@ export class HermesAdapter implements HarnessAdapter {
       this.#sessions.add(session);
       return { ok: true, value: session };
     } catch (error) {
-      await transport.close().catch(() => undefined);
-      this.#gatewayTransports.delete(transport);
+      if (transport) {
+        await transport.close().catch(() => undefined);
+        this.#gatewayTransports.delete(transport);
+      }
       return failure(
         error instanceof HermesGatewayHistoryError ? error.code : "nativeFailure",
         error instanceof Error ? error.message : "Hermes gateway open failed",
