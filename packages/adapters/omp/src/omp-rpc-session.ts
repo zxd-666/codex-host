@@ -952,6 +952,23 @@ export class OmpRpcSession {
     return settled;
   }
 
+  /**
+   * Native same-Turn input through OMP's `steer` RPC. OMP itself refuses a plain
+   * `prompt` while an agent runs ("Use steer() or followUp()"), so this is the
+   * only way to deliver mid-Turn input without stopping the Turn.
+   */
+  async steer(text: string): Promise<void> {
+    if (!this.#child || !this.#state || this.#closed || this.#failed) {
+      throw new Error("Omp RPC Session is unavailable");
+    }
+    if (text.length === 0) throw new Error("Omp steer text must not be empty");
+    try {
+      await this.#send("steer", { message: text });
+    } catch (error) {
+      throw error instanceof Error ? error : new Error(message(error));
+    }
+  }
+
   respondToInteraction(response: OmpInteractionResponse): Promise<void> {
     return this.#resolveInteraction(response, "cancelled" in response ? "cancelled" : "responded");
   }
@@ -1192,6 +1209,14 @@ export class OmpRpcSession {
       active?.cancellation === "accepted"
     ) {
       void this.#confirmCancelledTurn(active);
+      return;
+    }
+    if (value.type === "session_settled" && active?.settlement === "pending") {
+      // A terminal agent_end can arrive while a native background job keeps the
+      // session Streaming. That blocked the first confirmation; the native
+      // settle notification is the retry signal. Reconfirm serially through the
+      // same path so a still-busy session never settles the Turn early.
+      void this.#confirmSettledTurn(active);
       return;
     }
     if (!active) {
@@ -1807,10 +1832,13 @@ export class OmpRpcSession {
         return;
       }
       if (parseSessionStreaming(response)) {
-        throw new OmpRpcFaultError(
-          "protocolError",
-          "Omp RPC completed Turn state is still Streaming",
-        );
+        // A terminal agent_end can precede native background work draining:
+        // isStreaming stays true while those jobs run even though the Turn's
+        // own run ended. Waiting for the native session_settled notification
+        // (which reconfirms here) is correct; faulting would kill a healthy
+        // Turn whose queued follow-ups then pause forever.
+        active.settlement = "pending";
+        return;
       }
       this.#state = state;
       active.settlement = "confirmed";
